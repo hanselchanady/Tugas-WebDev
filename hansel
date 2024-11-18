@@ -1,0 +1,180 @@
+composer create-project laravel/laravel auth-backend
+cd auth-backend
+php artisan serve
+composer require laravel/sanctum
+php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+php artisan migrate
+'middleware' => [
+    'api' => [
+        \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        'throttle:api',
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    ],
+],
+use App\Http\Controllers\AuthController;
+
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+Route::get('/user', [AuthController::class, 'user'])->middleware('auth:sanctum');
+php artisan make:controller AuthController
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class AuthController extends Controller
+{
+    public function login(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (Auth::attempt($credentials)) {
+            $user = Auth::user();
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'Login successful',
+                'access_token' => $token,
+                'user' => $user,
+            ]);
+        }
+
+        return response()->json(['message' => 'Invalid credentials'], 401);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    public function user(Request $request)
+    {
+        return response()->json($request->user());
+    }
+}
+npm init vue@latest vue-auth-frontend
+cd vue-auth-frontend
+npm install
+npm install axios vue-router@4
+src/
+├── components/
+│   └── LoginForm.vue
+├── router/
+│   └── index.js
+├── views/
+│   ├── LoginView.vue
+│   └── DashboardView.vue
+├── App.vue
+└── main.js
+import { createRouter, createWebHistory } from 'vue-router';
+import LoginView from '../views/LoginView.vue';
+import DashboardView from '../views/DashboardView.vue';
+
+const routes = [
+    { path: '/', name: 'Login', component: LoginView },
+    { path: '/dashboard', name: 'Dashboard', component: DashboardView },
+];
+
+const router = createRouter({
+    history: createWebHistory(),
+    routes,
+});
+
+export default router;
+<template>
+    <form @submit.prevent="handleLogin">
+        <div>
+            <label for="email">Email:</label>
+            <input id="email" v-model="email" type="email" required />
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input id="password" v-model="password" type="password" required />
+        </div>
+        <button type="submit">Login</button>
+        <p v-if="error">{{ error }}</p>
+    </form>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+    data() {
+        return {
+            email: '',
+            password: '',
+            error: null,
+        };
+    },
+    methods: {
+        async handleLogin() {
+            try {
+                const response = await axios.post('http://localhost:8000/api/login', {
+                    email: this.email,
+                    password: this.password,
+                });
+                localStorage.setItem('token', response.data.access_token);
+                this.$router.push('/dashboard');
+            } catch (error) {
+                this.error = 'Invalid login credentials';
+            }
+        },
+    },
+};
+</script>
+<template>
+    <div>
+        <h1>Login</h1>
+        <LoginForm />
+    </div>
+</template>
+
+<script>
+import LoginForm from '../components/LoginForm.vue';
+
+export default {
+    components: {
+        LoginForm,
+    },
+};
+</script>
+<template>
+    <div>
+        <h1>Dashboard</h1>
+        <p>Welcome to the dashboard!</p>
+        <button @click="logout">Logout</button>
+    </div>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+    methods: {
+        async logout() {
+            const token = localStorage.getItem('token');
+            await axios.post('http://localhost:8000/api/logout', {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            localStorage.removeItem('token');
+            this.$router.push('/');
+        },
+    },
+};
+</script>
+import { createApp } from 'vue';
+import App from './App.vue';
+import router from './router';
+
+const app = createApp(App);
+
+app.use(router);
+app.mount('#app');
+php artisan serve
+npm run dev
